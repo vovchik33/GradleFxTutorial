@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<testsuite name="MainTest" tests="2" failures="1" errors="0" skipped="0" time="0.061" hostname="ptua-ls0200" timestamp="2015-02-02T17:19:17">
+  <testcase classname="MainTest" name="testMainTest_alwaysTrue" time="0.035"/>
+  <testcase classname="MainTest" name="testMainTest_getStringName" time="0.026">
+    <failure message="expected:&lt;StringUnknown&gt; but was:&lt;StringUnknown1&gt;" type="MainTest.testMainTest_getStringName"><![CDATA[]]></failure>
+  </testcase>
+</testsuite>

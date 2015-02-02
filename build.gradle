@@ -1,0 +1,148 @@
+import org.gradle.api.internal.file.BaseDirFileResolver
+import org.gradle.api.internal.file.FileResolver
+import org.gradle.internal.nativeintegration.services.FileSystems;
+
+buildscript {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+    dependencies {
+        classpath group: 'org.gradlefx', name: 'gradlefx', version: '1.1'
+    }
+}
+
+apply plugin: 'gradlefx'
+apply plugin: 'scaffold'
+
+type = 'swf'
+frameworkLinkage = 'none'
+mainClass = 'Main.as'
+version = '1.0-SNAPSHOT'
+
+flexUnit.command = resolveFlexUnitCommand(System.getenv()['FLASH_PLAYER_EXE'])
+def flexUnitHome = resolveFlexUnitHome(System.getenv()['FLEXUNIT_HOME'])
+
+additionalCompilerOptions = [
+        '-target-player=15.0',
+        '-strict=false'
+]
+
+htmlWrapper {
+    title         = 'My Page Title'
+    percentHeight = 80
+    percentWidth  = 80
+}
+repositories {
+    ivy {
+        name 'Apache'
+        artifactPattern 'http://apache.cu.be/flex/[revision]/binaries/[module]-[revision]-bin.[ext]'
+    }
+
+    ivy {
+        name 'Adobe Air SDK'
+        artifactPattern 'http://download.macromedia.com/air/win/download/[revision]/[module].[ext]'
+    }
+    maven {
+        name 'hamcrest-as3-repo'
+        url "https://repository.sonatype.org/content/groups/forge"
+    }
+}
+
+//dependency versions
+ext.hamcrest_as3_version = '1.1.0'
+
+dependencies {
+    flexSDK group: 'org.apache', name: 'apache-flex-sdk', version: '4.14.0', ext: 'tar.gz'
+    airSDK group: 'com.adobe', name: 'AdobeAIRSDK', version: '15.0', ext: 'zip'
+    test   group: 'hamcrest-as3',   name: 'hamcrest-as3',    version: hamcrest_as3_version,    ext: 'swc'
+    test files(project.file('libs/flexunit/flexUnitTasks-4.2.0-20140410.jar').absolutePath,
+            project.file('libs/flexunit/flexunit-4.2.0-20140410-flex_4.12.0.swc').absolutePath,
+            project.file('libs/flexunit/flexunit-cilistener-4.2.0-20140410-4.12.0.swc').absolutePath,
+            project.file('libs/flexunit/flexunit-uilistener-4.2.0-20140410-4.12.0.swc').absolutePath)
+}
+
+flexUnit {
+    template = 'src/test/resources/TVDirectorAppFlexUnitRunner.mxml'
+    additionalCompilerOptions = [
+            '-incremental=true',
+    ]
+}
+
+String resolveFlexUnitCommand(String flexUnitCommand){
+    if (flexUnitCommand == null) {
+        flexUnitCommand = resolveFile('debugPlayer', 'flashplayer_15_sa.exe',
+                'http://download.macromedia.com/pub/flashplayer/updaters/15/flashplayer_15_sa.exe')
+    }
+
+    return flexUnitCommand
+}
+
+String resolveFlexUnitHome(String flexUnitHome){
+    if (flexUnitHome == null) {
+        flexUnitHome = resolveZip('flexunit', 'flexunit-4.2.0-20140410-4.12.0.zip',
+                'http://flexunit.org/releases/flexunit-4.2.0-20140410-4.12.0.zip', true)
+    }
+
+    return flexUnitHome
+}
+
+File resolveFile(String fileDirName, String fileName, String downloadUrl) {
+    println("Resolve file: ${fileName}")
+
+    FileResolver gradleUserHomeDirectoryResolver = new BaseDirFileResolver(FileSystems.getDefault(), gradleFxUserHomeDir)
+    File fileDirectoryLocation = gradleUserHomeDirectoryResolver.resolve(fileDirName)
+
+    FileResolver fileLocationResolver = new BaseDirFileResolver(FileSystems.getDefault(), fileDirectoryLocation)
+    File fileLocation = fileLocationResolver.resolve(fileName)
+
+    if (!fileLocation.exists()) {
+        println("Download file from url: ${downloadUrl}")
+
+        fileDirectoryLocation.mkdirs()
+        fileLocation.createNewFile()
+        fileLocation.withOutputStream { out -> out << new URL(downloadUrl).openStream() }
+    }
+
+    return fileLocation
+}
+
+File resolveZip(String dirName, String zipName, String downloadUrl, Boolean rootDestinatin){
+    println("Resolve zip: ${zipName}")
+
+    FileResolver gradleUserHomeDirectoryResolver = new BaseDirFileResolver(FileSystems.getDefault(), gradleFxUserHomeDir)
+    File directoryLocation = gradleUserHomeDirectoryResolver.resolve(dirName)
+
+    FileResolver zipLocationResolver = new BaseDirFileResolver(FileSystems.getDefault(), directoryLocation)
+    File zipFile = zipLocationResolver.resolve(zipName)
+
+    if (!zipFile.exists()) {
+        File downloadZip = resolveFile(dirName, zipName, downloadUrl)
+
+        println("unzip file: ${zipName}")
+
+        if(rootDestinatin)
+            ant.unzip(src: downloadZip, dest: gradleFxUserHomeDir, overwrite: "true")
+        else
+            ant.unzip(src: downloadZip, dest: directoryLocation, overwrite: "true")
+    }
+
+    return directoryLocation;
+}
+
+sdkAutoInstall {
+    showPrompts	= false
+}
+
+air {
+    storepass = 'gradlefx'
+    includeFileTrees = [fileTree(dir: 'src/main/actionscript/', include: 'assets/appIcon.png')]
+}
+
+task wrapper(type: Wrapper) {
+    group = 'Buildmaster'
+    description = 'Generates gradlew and gradlew.bat bootstrap scripts'
+    gradleVersion = '2.1'
+    // place jar file and properties into a subdirectory to avoid root dir clutter
+    jarFile = 'buildSrc/wrapper/gradle.jar'
+}
